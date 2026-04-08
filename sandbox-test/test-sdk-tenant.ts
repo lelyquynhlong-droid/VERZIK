@@ -24,8 +24,12 @@ async function generateMenu() {
   console.log("\n--- MENU HỆ THỐNG ---");
   console.log("0. Thoát");
   console.log("1. Xem danh sách Tenant");
-  console.log("2. Đăng ký Operator (Join)");
-  console.log("3. Ký tài liệu (Register)");
+  console.log("2. Đăng ký Operator");
+  console.log("3. Ký tài liệu");
+  console.log("4. Xem danh sách Operator");
+  console.log("5. Xem trạng thái tài liệu");
+  console.log("6. Xác thực tài liệu");
+  console.log("7. Kiểm tra tiêu chuẩn");
   console.log("---------------------");
 }
 
@@ -79,6 +83,50 @@ async function handleRegisterWithSignature(client: BlockchainClient) {
   }
 }
 
+async function handleGetDocumentStatus(client: BlockchainClient) {
+  try {
+    const tenantId = await rl.question("🔹 Nhập Tenant ID (bytes32): ");
+    const fileHash = await rl.question("🔹 Nhập File Hash (bytes32): ");
+
+    const documentStatus = await client.getDocumentStatus(tenantId, fileHash);
+
+    return documentStatus;
+  } catch (error: any) {
+    console.error("❌ Lỗi khi Register file: ", error.message);
+  }
+}
+
+async function handleVerify(client: BlockchainClient) {
+  try {
+    const tenantId = await rl.question("🔹 Nhập Tenant ID (bytes32): ");
+    const fileHash = await rl.question("🔹 Nhập File Hash (bytes32): ");
+    const verifyStatus = await client.verify(tenantId, fileHash);
+
+    console.log(verifyStatus);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function handleIsDocumentCoSignQualified(client: BlockchainClient) {
+  try {
+    const tenantId = await rl.question("🔹 Nhập Tenant ID (bytes32): ");
+    const fileHash = await rl.question("🔹 Nhập File Hash (bytes32): ");
+    const isQualified = await client.isDocumentCoSignQualified(
+      tenantId,
+      fileHash,
+    );
+
+    if (isQualified) {
+      console.log("Đã đạt tiêu chuẩn: " + isQualified);
+    } else {
+      console.log("Chưa đạt tiêu chuẩn: " + isQualified);
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 async function main() {
   const client = await startApp();
   if (!client) return rl.close();
@@ -95,14 +143,29 @@ async function main() {
           console.log("Chào tạm biệt");
           break;
         case 1:
-          const list = await client.listTenants();
-          console.table(list);
+          const tenants = await client.listTenants();
+          console.log(tenants);
           break;
         case 2:
           await handleJoinAsOperator(client);
           break;
         case 3:
           await handleRegisterWithSignature(client);
+          break;
+        case 4:
+          const tenantId = await rl.question("🔹 Nhập Tenant ID (bytes32): ");
+          const operators = await client.listOperators(tenantId, 0, 10);
+          console.log(operators);
+          break;
+        case 5:
+          const document = await handleGetDocumentStatus(client);
+          console.log(document);
+          break;
+        case 6:
+          await handleVerify(client);
+          break;
+        case 7:
+          await handleIsDocumentCoSignQualified(client);
           break;
         default:
           console.log("Nhập sai nhập lại~~");
