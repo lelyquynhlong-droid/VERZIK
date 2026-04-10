@@ -1,12 +1,15 @@
 /**
- * Auth Service - Template (API connections removed)
+ * Auth Service - Fix lỗi Font & Phân cấp Owner > Admin > OP
  */
+
+export type UserRole = "owner" | "admin" | "op";
 
 export interface AuthUser {
   id: string;
   email: string;
   full_name: string;
-  role: "technician";
+  role: UserRole;
+  avatar?: string;
 }
 
 export interface AuthResponse {
@@ -17,125 +20,70 @@ export interface AuthResponse {
 }
 
 /**
- * Mock guest token
+ * Giải mã Unicode để hiển thị đúng "Lê Lý Quỳnh Long"
  */
-export async function fetchGuestToken(): Promise<string | null> {
-  // TODO: Connect to your API
-  return "mock-guest-token";
+function decodeUnicodeBase64(str: string) {
+  return decodeURIComponent(
+    atob(str.replace(/-/g, '+').replace(/_/g, '/'))
+      .split('')
+      .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+      .join('')
+  );
 }
 
 /**
- * Mock login
+ * PHÂN CẤP QUYỀN HẠN
+ * Owner: Toàn quyền | Admin: Quản lý | OP: Vận hành
  */
-export async function loginRequest(
-  email: string,
-  password: string,
-): Promise<AuthResponse> {
-  // TODO: Connect to your API
-  return {
-    success: true,
-    token: "mock-token",
-    user: {
-      id: "1",
-      email: email,
-      full_name: "Mock User",
-      role: "technician",
-    },
-  };
+function assignRole(email: string): UserRole {
+  const emailLower = email.toLowerCase();
+  
+  // Quyền Owner cao nhất
+  const owners = ["lelyquynhlong@gmail.com", "owner@gmail.com"]; 
+  
+  // Quyền Admin cấp trung
+  const admins = ["admin@gmail.com", "manager@gmail.com"];
+  
+  if (owners.includes(emailLower)) return "owner";
+  if (admins.includes(emailLower)) return "admin";
+  
+  return "op"; 
 }
 
-/**
- * Mock logout
- * POST /api/auth/logout
- */
-export async function logoutRequest(token: string): Promise<void> {
-  await fetch(`${BASE}/api/auth/logout`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    credentials: "include",
-  });
-}
-
-/**
- * Làm mới access token bằng refresh token (cookie)
- * POST /api/auth/refresh
- */
-export async function refreshTokenRequest(): Promise<string | null> {
+export async function googleLoginRequest(googleToken: string): Promise<AuthResponse> {
   try {
-    const res = await fetch(`${BASE}/api/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    });
-    const json: AuthResponse = await res.json();
-    return json.token ?? null;
-  } catch {
-    return null;
+    const base64Url = googleToken.split('.')[1];
+    const payload = JSON.parse(decodeUnicodeBase64(base64Url));
+
+    return {
+      success: true,
+      token: googleToken,
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        full_name: payload.name, // Tên sẽ hiện chuẩn tiếng Việt
+        role: assignRole(payload.email),
+        avatar: payload.picture 
+      },
+    };
+  } catch (error) {
+    console.error("Auth Error:", error);
+    return { success: false, message: "Lỗi xác thực" };
   }
 }
 
-/**
- * Lấy thông tin tài khoản hiện tại
- * GET /api/auth/me
- */
 export async function getMeRequest(token: string): Promise<AuthUser | null> {
   try {
-    const res = await fetch(`${BASE}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const json = await res.json();
-    return json.success ? json.data : null;
+    const base64Url = token.split('.')[1];
+    const payload = JSON.parse(decodeUnicodeBase64(base64Url));
+    return {
+      id: payload.sub,
+      email: payload.email,
+      full_name: payload.name,
+      role: assignRole(payload.email),
+      avatar: payload.picture
+    };
   } catch {
     return null;
   }
-}
-
-/**
- * Đổi mật khẩu
- * PUT /api/auth/change-password
- */
-export async function changePasswordRequest(
-  token: string,
-  currentPassword: string,
-  newPassword: string,
-): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${BASE}/api/auth/change-password`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      current_password: currentPassword,
-      new_password: newPassword,
-    }),
-  });
-  return res.json();
-}
-
-/**
- * Lấy lịch sử hoạt động gần nhất
- * GET /api/auth/activity-logs
- */
-export async function getActivityLogsRequest(
-  token: string,
-  limit = 10,
-): Promise<ActivityLog[]> {
-  try {
-    const res = await fetch(`${BASE}/api/auth/activity-logs?limit=${limit}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const json = await res.json();
-    return json.success ? json.data : [];
-  } catch {
-    return [];
-  }
-}
-
-export interface ActivityLog {
-  action: string;
-  resource: string | null;
-  resource_id: string | null;
-  details: Record<string, unknown> | null;
-  ip_address: string | null;
-  created_at: string;
 }

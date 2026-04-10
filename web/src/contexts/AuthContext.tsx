@@ -1,130 +1,90 @@
 "use client";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from "react";
-import type { AuthUser } from "@/services/auth.service";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { googleLoginRequest, type AuthUser, type UserRole } from "@/services/auth.service";
 
-// ──────────────────────────────────────────────────────────────────
-// Types
-// ──────────────────────────────────────────────────────────────────
+export type ContextRole = "viewer" | UserRole;
+
 export interface AuthState {
-  isAuthenticated: boolean; // false = viewer anonymous, true = technician
-  role: "viewer" | "technician";
-  routePrefix: string; // "user" cho viewer, email prefix cho technician
+  isAuthenticated: boolean; 
+  role: ContextRole;
+  routePrefix: string; 
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<string | null>;
-  logout: () => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<string | null>;
+  logout: () => void;
   getToken: () => string | null;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 const TOKEN_KEY = "auth_token";
-const ROLE_KEY = "auth_role";
+const USER_KEY = "auth_user_data";
 
-// ──────────────────────────────────────────────────────────────────
-// AuthProvider - TEMPLATE (API connections removed)
-// ──────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem(TOKEN_KEY),
-  );
-  const [role, setRole] = useState<"viewer" | "technician">(
-    () =>
-      (localStorage.getItem(ROLE_KEY) as "viewer" | "technician") || "viewer",
-  );
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  /** Lưu token vào state + localStorage */
-  const saveToken = useCallback((t: string, r: "viewer" | "technician") => {
-    localStorage.setItem(TOKEN_KEY, t);
-    localStorage.setItem(ROLE_KEY, r);
-    setToken(t);
-    setRole(r);
+  // Khôi phục phiên làm việc khi F5 trang
+  useEffect(() => {
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    const storedUser = localStorage.getItem(USER_KEY);
+
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
+      setIsAuthenticated(true);
+    }
+    setIsLoading(false);
   }, []);
 
-  /** Xóa auth state */
-  const clearAuth = useCallback(() => {
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    try {
+      const res = await googleLoginRequest(credential);
+
+      if (!res.success || !res.token || !res.user) {
+        return res.message || "Xác thực Google thất bại.";
+      }
+
+      localStorage.setItem(TOKEN_KEY, res.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+
+      setToken(res.token);
+      setUser(res.user);
+      setIsAuthenticated(true);
+      return null;
+    } catch (error) {
+      return "Đã xảy ra lỗi hệ thống.";
+    }
+  }, []);
+
+  const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(ROLE_KEY);
+    localStorage.removeItem(USER_KEY);
     setToken(null);
-    setRole("viewer");
     setUser(null);
     setIsAuthenticated(false);
   }, []);
 
-  /** Khởi tạo auth khi app load - MOCK */
-  useEffect(() => {
-    // TODO: Connect to your API to initialize authentication
-    const mockToken = "mock-guest-token";
-    saveToken(mockToken, "viewer");
-    setIsLoading(false);
-  }, [saveToken]);
-
-  /**
-   * Đăng nhập - MOCK
-   */
-  const login = useCallback(
-    async (email: string, password: string): Promise<string | null> => {
-      // TODO: Connect to your API
-      console.log("Mock login:", email, password);
-
-      // Mock success
-      const mockToken = "mock-tech-token";
-      const mockUser: AuthUser = {
-        id: "1",
-        email: email,
-        full_name: "Mock User",
-        role: "technician",
-      };
-
-      saveToken(mockToken, "technician");
-      setUser(mockUser);
-      setIsAuthenticated(true);
-      return null; // null = success
-    },
-    [saveToken],
-  );
-
-  /**
-   * Đăng xuất - MOCK
-   */
-  const logout = useCallback(async () => {
-    // TODO: Connect to your API
-    console.log("Mock logout");
-    clearAuth();
-    const mockToken = "mock-guest-token";
-    saveToken(mockToken, "viewer");
-  }, [clearAuth, saveToken]);
-
-  /** Trả về token hiện tại */
   const getToken = useCallback(() => token, [token]);
 
-  /** Route prefix */
-  const routePrefix =
-    isAuthenticated && user?.email
-      ? user.email.split("@")[0].toLowerCase()
-      : "";
+  // Logic điều hướng: Owner -> admin, Admin/OP -> email prefix
+  const routePrefix = user 
+    ? (user.role === 'owner' ? 'admin' : user.email.split("@")[0].toLowerCase())
+    : "";
 
   return (
     <AuthContext.Provider
       value={{
         isAuthenticated,
-        role,
+        role: user?.role || "viewer",
         routePrefix,
         user,
         token,
         isLoading,
-        login,
+        loginWithGoogle,
         logout,
         getToken,
       }}
@@ -134,9 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth phải dùng bên trong AuthProvider");
-  return ctx;
-}
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
+};
