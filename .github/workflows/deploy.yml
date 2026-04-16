@@ -1,11 +1,36 @@
-- name: Install
-  run: cd web && npm install
+name: Deploy Vite to GitHub Pages
 
-- name: Build
-  run: cd web && npm run build
+on:
+  push:
+    branches:
+      - main
 
-- name: Deploy
-  uses: peaceiris/actions-gh-pages@v3
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    publish_dir: ./web/dist   # 👈 thêm ./
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install deps
+        working-directory: web
+        run: npm install
+
+      - name: Build project
+        working-directory: web
+        run: npm run build
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: web/dist
