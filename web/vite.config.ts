@@ -4,25 +4,32 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: "/",
+export default defineConfig(({ mode }) => ({
+  // 👇 dev thì "/", deploy thì "/VERZIK/"
+  base: mode === "production" ? "/VERZIK/" : "/",
+
   plugins: [react(), tailwindcss()],
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
+
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
           // React core
           "vendor-react": ["react", "react-dom", "react-router-dom"],
-          // Charts – nặng nhất (~400kB)
+
+          // Charts
           "vendor-recharts": ["recharts"],
-          // Icon libraries
+
+          // Icons
           "vendor-icons": ["lucide-react", "@tabler/icons-react"],
-          // Radix UI primitives
+
+          // Radix UI
           "vendor-radix": [
             "@radix-ui/react-accordion",
             "@radix-ui/react-alert-dialog",
@@ -42,6 +49,7 @@ export default defineConfig({
             "@radix-ui/react-toggle-group",
             "@radix-ui/react-tooltip",
           ],
+
           // DnD Kit
           "vendor-dndkit": [
             "@dnd-kit/core",
@@ -49,9 +57,11 @@ export default defineConfig({
             "@dnd-kit/sortable",
             "@dnd-kit/utilities",
           ],
+
           // Table
           "vendor-table": ["@tanstack/react-table"],
-          // Misc utils
+
+          // Misc
           "vendor-misc": [
             "socket.io-client",
             "zod",
@@ -61,12 +71,13 @@ export default defineConfig({
             "sonner",
             "vaul",
           ],
-          // Animation – dùng trong sidebar layout
+
+          // Animation
           "vendor-motion": ["framer-motion"],
         },
       },
     },
-    // Tăng giới hạn cảnh báo chunk; pages lazy-load sẽ được split riêng
+
     chunkSizeWarningLimit: 600,
   },
-});
+}));
