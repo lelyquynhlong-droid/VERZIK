@@ -1,34 +1,11 @@
-name: Deploy to GitHub Pages
+- name: Install
+  run: cd web && npm install
 
-on:
-  push:
-    branches:
-      - main
+- name: Build
+  run: cd web && npm run build
 
-permissions:
-  contents: write
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install
-        run: cd web && npm install
-
-      - name: Build
-        run: cd web && npm run build
-
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: web/dist
+- name: Deploy
+  uses: peaceiris/actions-gh-pages@v3
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    publish_dir: ./web/dist   # 👈 thêm ./
